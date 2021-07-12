@@ -19,11 +19,13 @@ import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.testing.Flaky
 import okhttp3.testing.PlatformRule
+import okhttp3.testing.PlatformVersion
 import okhttp3.tls.internal.TlsUtil
 import okio.ByteString.Companion.toByteString
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.params.ParameterizedTest
@@ -51,6 +53,10 @@ class SessionReuseTest(
   @ValueSource(strings = ["TLSv1.2", "TLSv1.3"])
   @Flaky
   fun testSessionReuse(tlsVersion: String) {
+    if (tlsVersion == TlsVersion.TLS_1_3.javaName) {
+      assumeTrue(PlatformVersion.majorVersion != 8)
+    }
+
     val sessionIds = mutableListOf<String>()
 
     enableTls()
@@ -101,8 +107,10 @@ class SessionReuseTest(
     // Force reuse. This appears flaky (30% of the time) even though sessions are reused.
     // javax.net.ssl.SSLHandshakeException: No new session is allowed and no existing
     // session can be resumed
-    // TODO: raise JDK bug.
-    if (!platform.isJdk9()) {
+    //
+    // Report https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8264944
+    // Sessions improvement https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8245576
+    if (!platform.isJdk9() && !platform.isOpenJsse() && !platform.isJdk8Alpn()) {
       reuseSession = true
     }
 
